@@ -1,4 +1,5 @@
 import sys, time, sqlite3
+import mlflow
 import env_setup
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
@@ -100,6 +101,15 @@ def main():
     scored = passed + failed
     print("-" * 75)
     print(f"Score: {passed}/{scored} correct  ({ambiguous} flagged for review, {errored} errored)")
+
+    with mlflow.start_run():
+        mlflow.log_param("model", "openai/gpt-oss-20b")
+        mlflow.log_param("num_scenarios", len(SCENARIOS))
+        mlflow.log_metric("passed", passed)
+        mlflow.log_metric("failed", failed)
+        mlflow.log_metric("ambiguous", ambiguous)
+        mlflow.log_metric("errored", errored)
+        mlflow.log_metric("pass_rate", passed / scored if scored else 0)
 
 
 if __name__ == "__main__":
