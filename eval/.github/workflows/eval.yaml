@@ -1,0 +1,40 @@
+name: Sentinel Agent Eval
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout AgentLens
+        uses: actions/checkout@v4
+
+      - name: Checkout Sentinel
+        uses: actions/checkout@v4
+        with:
+          repository: ahmed-askri/Sentinel
+          path: Sentinel
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r Sentinel/requirements.txt
+          pip install pytest
+
+      - name: Run eval suite
+        env:
+          SENTINEL_PATH: ${{ github.workspace }}/Sentinel
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          SENTINEL_API_KEY: ${{ secrets.SENTINEL_API_KEY }}
+          LANGCHAIN_TRACING_V2: "true"
+          LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY }}
+          LANGCHAIN_PROJECT: sentinel-agentlens-ci
+        run: python -m pytest eval/test_sentinel.py -v
