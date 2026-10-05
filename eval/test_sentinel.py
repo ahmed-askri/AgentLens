@@ -34,7 +34,15 @@ def test_sentinel_decision(scenario):
     prompt = build_prompt(scenario)
     result = graph.invoke(
         {"messages": [HumanMessage(content=prompt)]},
-        {"configurable": {"thread_id": f"ci-{scenario['id']}"}},
+        {
+            "configurable": {"thread_id": f"eval-{scenario['id']}"},
+            "run_name": f"sentinel-{scenario['id']}",
+            "tags": ["agentlens", "runner"],
+            "metadata": {
+                "scenario_id": scenario["id"],
+                "expected": scenario["expected_decision"],
+            },
+        },
     )
     actual = determine_decision(result["messages"])
     assert actual == scenario["expected_decision"], (
