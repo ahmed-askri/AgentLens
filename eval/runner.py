@@ -11,10 +11,7 @@ from config import NOTIFY_METHOD, WEBHOOK_URL
 from seed import seed_history
 from scenarios import SCENARIOS
 from pathlib import Path
-mlflow.set_tracking_uri(
-    "sqlite:///" + (Path(__file__).resolve().parent.parent / "mlflow.db").as_posix()
-)
-mlflow.set_experiment("AgentLens")
+
 
 def clear_db():
     conn = sqlite3.connect(DB_PATH)
@@ -134,4 +131,8 @@ def main():
 
 
 if __name__ == "__main__":
+    mlflow.set_tracking_uri(
+    "sqlite:///" + (Path(__file__).resolve().parent.parent / "mlflow.db").as_posix()
+    )
+    mlflow.set_experiment("AgentLens")
     main()
