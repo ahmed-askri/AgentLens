@@ -10,7 +10,7 @@ from agent.graph import build_graph, MODEL_NAME
 from config import NOTIFY_METHOD, WEBHOOK_URL
 from seed import seed_history
 from scenarios import SCENARIOS
-
+from pathlib import Path
 mlflow.set_tracking_uri(
     "sqlite:///" + (Path(__file__).resolve().parent.parent / "mlflow.db").as_posix()
 )
