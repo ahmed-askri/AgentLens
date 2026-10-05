@@ -5,3 +5,4 @@ __pycache__/
 .pytest_cache/
 test_mlflow.py
 test_sentinel.py
+mlruns/
