@@ -1,4 +1,4 @@
-import sys, time, sqlite3
+import sys, os, time, sqlite3, datetime
 import mlflow
 import env_setup
 from langchain_core.messages import HumanMessage
@@ -6,11 +6,15 @@ from langgraph.checkpoint.memory import MemorySaver
 from incident_db import init_db, DB_PATH
 from notifiers import build_notifier
 from agent.tools import build_tools
-from agent.graph import build_graph
+from agent.graph import build_graph, MODEL_NAME
 from config import NOTIFY_METHOD, WEBHOOK_URL
 from seed import seed_history
 from scenarios import SCENARIOS
 
+mlflow.set_tracking_uri(
+    "sqlite:///" + (Path(__file__).resolve().parent.parent / "mlflow.db").as_posix()
+)
+mlflow.set_experiment("AgentLens")
 
 def clear_db():
     conn = sqlite3.connect(DB_PATH)
@@ -57,7 +61,15 @@ def run_scenario(scenario, tools):
     prompt = build_prompt(scenario)
     result = graph.invoke(
         {"messages": [HumanMessage(content=prompt)]},
-        {"configurable": {"thread_id": f"eval-{scenario['id']}"}},
+        {
+            "configurable": {"thread_id": f"eval-{scenario['id']}"},
+            "run_name": f"sentinel-{scenario['id']}",
+            "tags": ["agentlens", "runner"],
+            "metadata": {
+                "scenario_id": scenario["id"],
+                "expected": scenario["expected_decision"],
+            },
+        },
     )
     actual = determine_decision(result["messages"])
     reasoning = result["messages"][-1].content
@@ -66,12 +78,12 @@ def run_scenario(scenario, tools):
 
 def main():
     init_db()
-    
 
     notifier = build_notifier(NOTIFY_METHOD, WEBHOOK_URL)
     tools = build_tools(notifier)
 
     passed, failed, ambiguous, errored = 0, 0, 0, 0
+    results = []
     print(f"{'ID':32} {'EXPECTED':10} {'ACTUAL':10} RESULT")
     print("-" * 75)
 
@@ -80,6 +92,9 @@ def main():
             actual, reasoning = run_scenario(scenario, tools)
         except Exception as e:
             errored += 1
+            results.append({"id": scenario["id"],
+                            "expected": scenario["expected_decision"],
+                            "actual": "--", "result": "ERROR"})
             print(f"{scenario['id']:32} {'--':10} {'--':10} ERROR ({type(e).__name__})")
             time.sleep(2)
             continue
@@ -95,6 +110,8 @@ def main():
             failed += 1
             result = "FAIL"
 
+        results.append({"id": scenario["id"], "expected": expected,
+                        "actual": actual, "result": result})
         print(f"{scenario['id']:32} {expected:10} {actual:10} {result}")
         time.sleep(2)
 
@@ -102,14 +119,18 @@ def main():
     print("-" * 75)
     print(f"Score: {passed}/{scored} correct  ({ambiguous} flagged for review, {errored} errored)")
 
-    with mlflow.start_run():
-        mlflow.log_param("model", "openai/gpt-oss-20b")
+    run_name = f"eval-{datetime.datetime.now():%Y%m%d-%H%M}"
+    with mlflow.start_run(run_name=run_name):
+        mlflow.log_param("model", MODEL_NAME)
+        mlflow.log_param("temperature", 0)
         mlflow.log_param("num_scenarios", len(SCENARIOS))
+        mlflow.log_param("langsmith_project", os.environ.get("LANGSMITH_PROJECT", "none"))
         mlflow.log_metric("passed", passed)
         mlflow.log_metric("failed", failed)
         mlflow.log_metric("ambiguous", ambiguous)
         mlflow.log_metric("errored", errored)
         mlflow.log_metric("pass_rate", passed / scored if scored else 0)
+        mlflow.log_dict(results, "scenario_results.json")
 
 
 if __name__ == "__main__":
